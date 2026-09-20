@@ -11,22 +11,19 @@ use crate::transfer::send;
 struct Cli{
     #[arg(short,long,value_name="file")]
     send:Option<String>,
-    
+
     code:Option<String>,
 }
 
 
 mod transfer;
 
-
-
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
     let args = Cli::parse();
 
     if let Some(value) = args.send  {
         println!("Sending {} ...",&value);
-        let code = send(&value)?;
-        println!("Your code is {}",code);
+        let _ = send(&value)?;
     }else if let Some(value) = args.code {
         // TODO: RECIVE
         println!("{:?}",value);
