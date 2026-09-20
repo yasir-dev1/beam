@@ -1,4 +1,6 @@
-use clap::{Args,Parser};
+use clap::{Parser};
+use crate::transfer::send;
+
 
 
 #[derive(Parser,Debug)]
@@ -9,18 +11,27 @@ use clap::{Args,Parser};
 struct Cli{
     #[arg(short,long,value_name="file")]
     send:Option<String>,
-
+    
     code:Option<String>,
 }
 
 
-fn main() {
+mod transfer;
+
+
+
+fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
     let args = Cli::parse();
 
     if let Some(value) = args.send  {
-        // TODO: SEND
+        println!("Sending {} ...",&value);
+        let code = send(&value)?;
+        println!("Your code is {}",code);
     }else if let Some(value) = args.code {
         // TODO: RECIVE
+        println!("{:?}",value);
     }
+
+    Ok(())
 }
 
