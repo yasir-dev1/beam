@@ -1,5 +1,6 @@
 use clap::{Parser};
-use crate::transfer::send;
+use hostname::get;
+use crate::transfer::{recive, send};
 
 
 
@@ -25,7 +26,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
         println!("Sending {} ...",&value);
         let _ = send(&value)?;
     }else if let Some(value) = args.code {
-        // TODO: RECIVE
+        recive(&value);
         println!("{:?}",value);
     }
 
