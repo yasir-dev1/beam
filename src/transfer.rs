@@ -57,11 +57,18 @@ pub fn send(path: &str) -> std::result::Result<String, Box<dyn std::error::Error
     Ok(code)
 }
 
+
+
 pub fn recive(code:&str) ->std::result::Result<(), Box<dyn std::error::Error>> {
     let services = fetch_codes()?;
     for service in services {
-        let code  = service.txt_properties.get("code").unwrap().val_str();
-        println!("code:{}",code);
+        let service_code  = service.txt_properties.get("code").unwrap().val_str();
+        if service_code == code{
+            let ip = service.get_addresses_v4();
+            let ip = ip.iter().next().unwrap();
+            let port = service.port;
+            println!("ip : {:?} , port: {port:?}",ip);
+        }
     }
 
     Ok(())

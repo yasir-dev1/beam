@@ -26,7 +26,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
         println!("Sending {} ...",&value);
         let _ = send(&value)?;
     }else if let Some(value) = args.code {
-        recive(&value);
+        let _ = recive(&value);
         println!("{:?}",value);
     }
 
