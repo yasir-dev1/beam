@@ -2,11 +2,10 @@
 use rand::{distr::Alphanumeric,RngExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
-use std::{fs::File, io::{BufRead, BufReader, Read, Write}, net::{IpAddr, TcpListener, TcpStream}};
+use std::{env, fs::File, io::{BufRead, BufReader, Read, Write}, net::{IpAddr, TcpListener, TcpStream}, path::PathBuf};
 use daemonize::Daemonize;
 use serde_json::json;
 use std::fs::OpenOptions;
-
 
 
 fn gen_code() -> String {
@@ -16,12 +15,16 @@ fn gen_code() -> String {
 }
 
 fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>>{
-    let mut buffer = [0;1024];
+    let mut buffer = [0u8;1024];
     stream.read(&mut buffer).expect("Error Reading");
-    let request = String::from_utf8_lossy(&buffer[..]);
-    println!("Request : {request:?}");
+    println!("Waiting for code");
+    let request = std::str::from_utf8(&buffer[..])?;
+    let request = request.replace("\0", "");
+    let request =  request.trim();
     let response = get_file_path(&request)?;
-    stream.write(&response.as_bytes())?;
+    let response = format!("\n{response}\n");
+    let response = &response.as_bytes();
+    stream.write(response)?;
     Ok(())
 }
 
@@ -77,18 +80,17 @@ fn get_file_path(code:&str)-> std::result::Result<String,Box<dyn std::error::Err
     let file_path = dir.join("beam.json");
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
-
     for line in reader.lines() {
         let line = line?;
-
         let data:serde_json::Value = serde_json::from_str(&line)?;
-
-        if data["code"].as_str().unwrap() == code{
+        let current_code = data["code"].as_str().unwrap();
+        if &current_code == &code{
+            println!("I arrived here 85");
             return Ok(String::from(data["path"].as_str().unwrap()));
         }   
     }
 
-    Ok(String::from(""))
+    Ok(String::from("Not Found"))
 }
 
 fn check_already_sent(path:&String) -> std::result::Result<bool,Box<dyn  std::error::Error + Send + Sync>>{
@@ -140,9 +142,16 @@ fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::e
     }
     Ok(())
 }
-             
+
+fn get_full_path(filename: &str) -> std::io::Result<PathBuf> {
+    let current_dir = env::current_dir()?;
+    Ok(current_dir.join(filename))
+}
+
 pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let code = gen_code();
+    let path = get_full_path(path)?;
+    let path = path.display();
     if check_already_sent(&path.to_string())? {
         println!("This File is already sent");
         return Ok(());
