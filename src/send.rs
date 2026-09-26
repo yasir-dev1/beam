@@ -4,6 +4,10 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
 use std::{fs::File, io::{Read, Write}, net::{IpAddr, TcpListener, TcpStream}};
 use daemonize::Daemonize;
+use serde_json::json;
+use std::fs::OpenOptions;
+use std::path::Path;
+
 
 
 fn gen_code() -> String {
@@ -39,47 +43,54 @@ fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::r
     Ok(())
 }
 
-pub fn send(path: &str) -> std::result::Result<String, Box<dyn std::error::Error>> {
-    let code = gen_code();
+fn send_file(code:&String)->std::result::Result<(), Box<dyn std::error::Error>>{
+    let host_name = format!("{}.local.", hostname::get()?.to_string_lossy());
+    let current_ip = local_ip()?;
+    let ip_str = current_ip.to_string();
+    let addr = format!("{ip_str}:53317");
 
-
-    let stdout = File::create(format!("/tmp/beam{code}.out")).unwrap();
-    let stderr = File::create(format!("/tmp/beam{code}.err")).unwrap();
-
-    let daemonize = Daemonize::new()
-        .pid_file(format!("/tmp/beam{code}.pid"))
-        .chown_pid_file(true)      
-        .working_directory("/tmp") 
-        .stdout(stdout)  
-        .stderr(stderr);
-
-      
-        println!("Your code is {}",code);
-         
-        match daemonize.start() {
-            Ok(_) => { 
-                let host_name = format!("{}.local.", hostname::get()?.to_string_lossy());
-                let current_ip = local_ip()?;
-                let ip_str = current_ip.to_string();
-                let addr = format!("{ip_str}:53317");
-                
-                register_service(&host_name, &current_ip, &code)?;    
-                
-                let listener = TcpListener::bind(&addr)?;
-                println!("TCP Listning addr: {}",&addr);
-                for stream in listener.incoming(){
-                    match stream {
-                        Ok(stream) => {
-                            std::thread::spawn(|| handle_clinet(stream) );
-                        }
-                        Err(e) => {
-                            eprintln!("Error {}",e)
-                        }
-                    }
-        }
+    register_service(&host_name, &current_ip, &code)?;  
+    
+    let listener = TcpListener::bind(&addr)?;
+    println!("TCP Listning addr: {}",&addr);
+    for stream in listener.incoming(){
+        match stream {
+            Ok(stream) => {
+                std::thread::spawn(|| handle_clinet(stream) );
             }
+            Err(e) => {
+                eprintln!("Error {}",e);
+            }
+        }
+    }
+    Ok(())
+}
+             
+
+pub fn send(path: &str,watch:&bool) -> std::result::Result<String, Box<dyn std::error::Error>> {
+    let code = gen_code();
+    println!("Your code is {}",code);
+        
+    if *watch {
+        send_file(&code)?;
+    }
+    else {
+        let stdout = File::create(format!("/tmp/beam{code}.out")).unwrap();
+        let stderr = File::create(format!("/tmp/beam{code}.err")).unwrap();
+
+        let daemonize = Daemonize::new()
+            .pid_file(format!("/tmp/beam{code}.pid"))
+            .chown_pid_file(true)      
+            .working_directory("/tmp") 
+            .stdout(stdout)  
+            .stderr(stderr);
+
+        match daemonize.start() {
+            Ok(_) => send_file(&code)?,
             Err(e) => eprintln!("Error, {}", e),
         }
+
+    }
 
     println!("{:?}",path);
     Ok(code)

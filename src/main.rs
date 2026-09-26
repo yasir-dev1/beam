@@ -12,6 +12,8 @@ use crate::recive::recive;
 struct Cli{
     #[arg(short,long,value_name="file")]
     send:Option<String>,
+   #[arg(short = 'w', long)]
+    watch: bool,
 
     code:Option<String>,
 }
@@ -24,7 +26,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
     let args = Cli::parse();
 
     if let Some(value) = args.send  {
-        let _ = send(&value)?;
+        let _ = send(&value,&args.watch)?;
     }else if let Some(value) = args.code {
         let _ = recive(&value);
     }
