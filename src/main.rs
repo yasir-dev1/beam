@@ -22,7 +22,7 @@ struct Cli{
 mod recive;
 mod send;
 
-fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
+fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>{
     let args = Cli::parse();
 
     if let Some(value) = args.send  {
