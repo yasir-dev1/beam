@@ -2,7 +2,7 @@
 use rand::{distr::Alphanumeric,RngExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
-use std::{fs::File, io::{Read, Write}, net::{IpAddr, TcpListener, TcpStream}};
+use std::{fs::File, io::{BufRead, BufReader, Read, Write}, net::{IpAddr, TcpListener, TcpStream}};
 use daemonize::Daemonize;
 use serde_json::json;
 use std::fs::OpenOptions;
@@ -43,12 +43,63 @@ fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::r
     Ok(())
 }
 
-fn send_file(code:&String)->std::result::Result<(), Box<dyn std::error::Error>>{
+fn register_file(path:&String,code:&String)-> std::result::Result<(),Box<dyn  std::error::Error>> {
+
+    let mut dir = dirs::data_local_dir().unwrap();
+    dir.push("beam");
+
+    std::fs::create_dir_all(&dir)?;
+
+    let file_path = dir.join("beam.json");
+
+    let data = json!({
+        "code": code,
+        "path": path,
+    });
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)?;
+
+    let json = serde_json::to_string(&data)?;
+    writeln!(file, "{}", json)?;
+
+    Ok(())
+
+
+}
+
+fn check_already_sent(path:&String) -> std::result::Result<bool,Box<dyn  std::error::Error>>{
+    let mut dir = dirs::data_local_dir().unwrap();
+    dir.push("beam");
+
+    let file_path = dir.join("beam.json");
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line?;
+
+        let data:serde_json::Value = serde_json::from_str(&line)?;
+
+        if data["path"].as_str().unwrap() == path{
+            return Ok(true);
+        }
+      
+        
+    }
+
+    Ok(false)
+}
+
+fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::error::Error>>{
     let host_name = format!("{}.local.", hostname::get()?.to_string_lossy());
     let current_ip = local_ip()?;
     let ip_str = current_ip.to_string();
     let addr = format!("{ip_str}:53317");
 
+    register_file(path, code);
     register_service(&host_name, &current_ip, &code)?;  
     
     let listener = TcpListener::bind(&addr)?;
@@ -66,15 +117,16 @@ fn send_file(code:&String)->std::result::Result<(), Box<dyn std::error::Error>>{
     Ok(())
 }
              
-
-pub fn send(path: &str,watch:&bool) -> std::result::Result<String, Box<dyn std::error::Error>> {
+pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::error::Error>> {
     let code = gen_code();
-    println!("Your code is {}",code);
-        
-    if *watch {
-        send_file(&code)?;
+    if check_already_sent(&path.to_string())? {
+        println!("This File is already sent");
+        return Ok(());
     }
-    else {
+    
+    if *watch {
+        send_file(&code,&path.to_string())?;
+    }else{
         let stdout = File::create(format!("/tmp/beam{code}.out")).unwrap();
         let stderr = File::create(format!("/tmp/beam{code}.err")).unwrap();
 
@@ -86,13 +138,11 @@ pub fn send(path: &str,watch:&bool) -> std::result::Result<String, Box<dyn std::
             .stderr(stderr);
 
         match daemonize.start() {
-            Ok(_) => send_file(&code)?,
+            Ok(_) => send_file(&code,&path.to_string())?,
             Err(e) => eprintln!("Error, {}", e),
         }
 
     }
 
-    println!("{:?}",path);
-    Ok(code)
+    Ok(())
 }
-
