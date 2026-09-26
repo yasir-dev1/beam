@@ -1,5 +1,4 @@
 use clap::{Parser};
-use hostname::get;
 use crate::transfer::{recive, send};
 
 
