@@ -125,7 +125,6 @@ fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::e
 
     register_file(path, code)?;
     register_service(&host_name, &current_ip, &code)?;  
-    println!("Your BeamCode is :{code} ");
     
     let listener = TcpListener::bind(&addr)?;
     println!("TCP Listning addr: {}",&addr);
@@ -148,6 +147,7 @@ pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::erro
         println!("This File is already sent");
         return Ok(());
     }
+    println!("Your BeamCode is :{code} ");
     
     if *watch {
         send_file(&code,&path.to_string())?;
