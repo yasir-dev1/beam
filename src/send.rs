@@ -92,23 +92,26 @@ fn get_file_path(code:&str)-> std::result::Result<String,Box<dyn std::error::Err
 }
 
 fn check_already_sent(path:&String) -> std::result::Result<bool,Box<dyn  std::error::Error + Send + Sync>>{
-    let mut dir = dirs::data_local_dir().unwrap();
+   let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
 
     let file_path = dir.join("beam.json");
-    let file = File::open(file_path)?;
+
+    let file = match File::open(file_path) {
+        Ok(file) => file,
+        Err(_) => return Ok(false),
+    };
+
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
         let line = line?;
 
-        let data:serde_json::Value = serde_json::from_str(&line)?;
+        let data: serde_json::Value = serde_json::from_str(&line)?;
 
-        if data["path"].as_str().unwrap() == path{
+        if data["path"].as_str().unwrap() == path {
             return Ok(true);
         }
-      
-        
     }
 
     Ok(false)
