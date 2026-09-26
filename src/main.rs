@@ -1,5 +1,6 @@
 use clap::{Parser};
-use crate::transfer::{recive, send};
+use crate::send::send;
+use crate::recive::recive;
 
 
 
@@ -16,17 +17,16 @@ struct Cli{
 }
 
 
-mod transfer;
+mod recive;
+mod send;
 
 fn main() -> std::result::Result<(), Box<dyn std::error::Error>>{
     let args = Cli::parse();
 
     if let Some(value) = args.send  {
-        println!("Sending {} ...",&value);
         let _ = send(&value)?;
     }else if let Some(value) = args.code {
         let _ = recive(&value);
-        println!("{:?}",value);
     }
 
     Ok(())
