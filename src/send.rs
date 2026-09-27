@@ -65,7 +65,7 @@ fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::r
 
     let service = ServiceInfo::new(
         "_beam._tcp.local.",
-        "Beam",
+        &format!("Beam_{}",code),
         host_name,
         current_ip,   
         53317,
