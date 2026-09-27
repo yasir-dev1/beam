@@ -2,7 +2,7 @@
 use rand::{distr::Alphanumeric,RngExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
-use std::{env, fs::File, io::{BufRead, BufReader, Read, Write}, net::{IpAddr, TcpListener, TcpStream}, path::PathBuf};
+use std::{env, fs::File, io::{BufRead, BufReader, BufWriter, Read, Write}, net::{IpAddr, TcpListener, TcpStream}, os::unix::fs::MetadataExt, path::{self, Path, PathBuf}};
 use daemonize::Daemonize;
 use serde_json::json;
 use std::fs::OpenOptions;
@@ -21,10 +21,36 @@ fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::er
     let request = std::str::from_utf8(&buffer[..])?;
     let request = request.replace("\0", "");
     let request =  request.trim();
-    let response = get_file_path(&request)?;
-    let response = format!("\n{response}\n");
-    let response = &response.as_bytes();
-    stream.write(response)?;
+    let path = get_file_path(&request)?;
+    let path = Path::new(&path);
+    
+    println!("path:{path:?}");
+    if !path.exists() || !path.is_file() {
+        let message = format!("File not found {}",path.file_name().unwrap().to_str().unwrap());
+        println!("{}",&message);
+        stream.write(&message.as_bytes())?;
+        return  Ok(());
+    }
+
+    let file = File::open(path)?;
+    let file_size = file.metadata()?.size();
+    let mut reader = BufReader::new(file);
+
+    stream.write(file_size.to_string().as_bytes())?;
+
+    let mut buffer = [0u8; 4096];
+    let mut writer = BufWriter::new(stream);
+
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        writer.write_all(&buffer[..bytes_read])?;
+    }
+
+    writer.flush()?;
+
     Ok(())
 }
 
@@ -85,7 +111,6 @@ fn get_file_path(code:&str)-> std::result::Result<String,Box<dyn std::error::Err
         let data:serde_json::Value = serde_json::from_str(&line)?;
         let current_code = data["code"].as_str().unwrap();
         if &current_code == &code{
-            println!("I arrived here 85");
             return Ok(String::from(data["path"].as_str().unwrap()));
         }   
     }
@@ -133,7 +158,7 @@ fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::e
     for stream in listener.incoming(){
         match stream {
             Ok(stream) => {
-                std::thread::spawn(|| handle_clinet(stream) );
+                std::thread::spawn(|| handle_clinet(stream));
             }
             Err(e) => {
                 eprintln!("Error {}",e);
