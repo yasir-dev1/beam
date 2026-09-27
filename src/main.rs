@@ -1,6 +1,6 @@
 mod recive;
 mod send;
-use crate::send::send;
+use crate::send::{cancle, send};
 use crate::recive::recive;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -19,6 +19,8 @@ struct Cli{
     watch: bool,
     #[arg(short,long)]
     list: bool,
+    #[arg(short,long,value_name="code")]
+    cancel:Option<String>,
 
     code:Option<String>,
 }
@@ -65,6 +67,8 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>{
         let _ = send(&value,&args.watch)?;
     }else if let Some(value) = args.code {
         let _ = recive(&value);
+    }else if let Some(value) = args.cancel  {
+        let _ = cancle(&value);
     }
 
     Ok(())

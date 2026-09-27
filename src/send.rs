@@ -211,3 +211,26 @@ pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::erro
 
     Ok(())
 }
+
+pub fn cancle(code:&str) -> std::io::Result<()> {
+    let pid_path = format!("/tmp/beam{code}.pid");
+    let pid = std::fs::read_to_string(&pid_path)?.trim().to_string();
+
+    std::process::Command::new("kill").args(["-TERM",&pid]).status()?;
+    let mut dir = dirs::data_local_dir().unwrap();
+    dir.push("beam");
+    let file_path = dir.join("beam.json");
+    let lines = std::fs::read_to_string(&file_path)?
+    .lines()
+    .filter(|line| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .map(|v| v["code"].as_str() != Some(code))
+            .unwrap_or(true)
+    })
+    .collect::<Vec<_>>()
+    .join("\n");
+
+    std::fs::write(&file_path, lines)?;
+
+    Ok(())
+}
