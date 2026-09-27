@@ -1,10 +1,10 @@
 use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
 use std::fs::File;
-use std::io::{BufWriter, Read, Write};
+use std::io::{self, BufWriter, Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::net::TcpStream;
-
+use indicatif::ProgressBar;
 
 fn fetch_codes() -> std::result::Result<Vec<Box<ResolvedService>>, Box<dyn std::error::Error>> {
     let mdns = ServiceDaemon::new()?;
@@ -45,28 +45,38 @@ fn tcp_connect(addr:&String,code:&String) -> std::result::Result<(),Box<dyn std:
     stream.write_all(code.as_bytes())?;
     stream.flush()?;
     
-    let mut name_buffer = [0u8; 1024];
 
+    
+    let mut size_buffer = [0u8; 1024];
+    stream.read(&mut size_buffer)?;
+    let file_size = std::str::from_utf8(&size_buffer[..])?;
+    let file_size = file_size.replace("\0", "");
+    let file_size =  &file_size.trim();
+
+
+    let mut name_buffer = [0u8; 1024];
     stream.read(&mut name_buffer)?;
     let file_name = std::str::from_utf8(&name_buffer[..])?;
     let file_name = file_name.replace("\0", "");
     let file_name =  file_name.trim();
 
+
+    println!("Reciving File:{} {} bytes",file_name,file_size);
+
     let file_path = Path::new(file_name);
-    let file = File::create_new(&file_path)?;
+    let file = File::create(&file_path)?;
     let mut writer = BufWriter::new(file);
-    let mut file_buffer = [0u8;4096];
 
-    loop {
-        let bytes_read = stream.read(&mut file_buffer)?;
+    let pb = ProgressBar::new(file_size.parse::<u64>()?);
 
-        if bytes_read == 0 {
-            break;
-        }
-        writer.write(&file_buffer)?;
-    }
+    let mut tracked_stream = pb.wrap_read(stream);
+
+    io::copy(&mut tracked_stream, &mut writer)?;
+
+    pb.finish_with_message("File recived successfully");
 
     writer.flush()?;
+
 
     Ok(())
 }
