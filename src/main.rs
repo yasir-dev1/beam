@@ -12,7 +12,7 @@ use crate::recive::recive;
 struct Cli{
     #[arg(short,long,value_name="file")]
     send:Option<String>,
-   #[arg(short = 'w', long)]
+    #[arg(short = 'w', long)]
     watch: bool,
 
     code:Option<String>,
