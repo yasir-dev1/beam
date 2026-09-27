@@ -33,8 +33,10 @@ fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::er
     }
 
     let file = File::open(path)?;
+    let file_size = file.metadata()?.size();
     let mut reader = BufReader::new(file);
 
+    stream.write(file_size.to_string().as_bytes())?;
     stream.write(path.file_name().unwrap().as_bytes())?;
 
     let mut buffer = [0u8; 4096];

@@ -1,5 +1,7 @@
 use mdns_sd::{ResolvedService, ServiceDaemon, ServiceEvent};
-use std::io::Write;
+use std::fs::File;
+use std::io::{BufWriter, Read, Write};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::net::TcpStream;
 
@@ -42,6 +44,30 @@ fn tcp_connect(addr:&String,code:&String) -> std::result::Result<(),Box<dyn std:
     let mut stream = TcpStream::connect(addr)?;
     stream.write_all(code.as_bytes())?;
     stream.flush()?;
+    
+    let mut name_buffer = [0u8; 1024];
+
+    stream.read(&mut name_buffer)?;
+    let file_name = std::str::from_utf8(&name_buffer[..])?;
+    let file_name = file_name.replace("\0", "");
+    let file_name =  file_name.trim();
+
+    let file_path = Path::new(file_name);
+    let file = File::create_new(&file_path)?;
+    let mut writer = BufWriter::new(file);
+    let mut file_buffer = [0u8;4096];
+
+    loop {
+        let bytes_read = stream.read(&mut file_buffer)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+        writer.write(&file_buffer)?;
+    }
+
+    writer.flush()?;
+
     Ok(())
 }
 
