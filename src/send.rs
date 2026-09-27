@@ -59,7 +59,7 @@ fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::er
     Ok(())
 }
 
-fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>> {
+fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::result::Result<String,Box<dyn  std::error::Error + Send + Sync>> {
     let properties = [("code", code.as_str())];
     let daemon = ServiceDaemon::new()?;
 
@@ -72,12 +72,12 @@ fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::r
         &properties[..],
     )?;
 
-    let _ = daemon.register(service)?;
-    
-    Ok(())
+    let _ = daemon.register(service.clone())?;
+
+    Ok(service.get_fullname().to_string())
 }
 
-fn register_file(path:&String,code:&String)-> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>> {
+fn register_file(path:&String,code:&String,service_name:&String)-> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>> {
 
     let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
@@ -89,6 +89,7 @@ fn register_file(path:&String,code:&String)-> std::result::Result<(),Box<dyn  st
     let data = json!({
         "code": code,
         "path": path,
+        "service_name":service_name,
     });
 
     let mut file = OpenOptions::new()
@@ -155,9 +156,9 @@ fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::e
     let ip_str = current_ip.to_string();
     let addr = format!("{ip_str}:53317");
 
-    register_file(path, code)?;
-    register_service(&host_name, &current_ip, &code)?;  
-    
+    let service_name = register_service(&host_name, &current_ip, &code)?;  
+    register_file(path, code,&service_name)?;
+
     let listener = TcpListener::bind(&addr)?;
     println!("TCP Listning addr: {}",&addr);
     for stream in listener.incoming(){

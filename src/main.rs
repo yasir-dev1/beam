@@ -5,7 +5,7 @@ use crate::recive::recive;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use clap::{Parser};
-use serde_json;
+use serde_json::{self, value};
 
 #[derive(Parser,Debug)]
 #[command(name = "beam" , override_usage = "beam --send <file>\n       beam <code>"
@@ -35,17 +35,18 @@ let mut dir = dirs::data_local_dir().unwrap();
     };
 
     let reader = BufReader::new(file);
-    println!("{:<50} {}", "Path", "Code");
-    println!("{:-<50} {:-<10}", "", "");
+    println!("{:<50} {:<10} {}", "Path", "Code", "Service Name");
+    println!("{:-<50} {:-<10} {:-<20}", "", "", "");
 
     for line in reader.lines() {
         let line = line?;
         let data: serde_json::Value = serde_json::from_str(&line)?;
 
         println!(
-            "{:<50} {}",
+            "{:<50} {:<10} {}",
             data["path"].as_str().unwrap(),
-            data["code"].as_str().unwrap()
+            data["code"].as_str().unwrap(),
+            data["service_name"].as_str().unwrap(),
         );
     }
 
