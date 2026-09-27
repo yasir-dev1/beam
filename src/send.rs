@@ -2,7 +2,7 @@
 use rand::{distr::Alphanumeric,RngExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
 use local_ip_address::local_ip;
-use std::{env, fs::File, io::{BufRead, BufReader, BufWriter, Read, Write}, net::{IpAddr, TcpListener, TcpStream}, os::unix::fs::MetadataExt, path::{self, Path, PathBuf}};
+use std::{env, fs::File, io::{BufRead, BufReader, BufWriter, Read, Write}, net::{IpAddr, TcpListener, TcpStream}, os::unix::{ffi::OsStrExt, fs::MetadataExt}, path::{self, Path, PathBuf}};
 use daemonize::Daemonize;
 use serde_json::json;
 use std::fs::OpenOptions;
@@ -33,10 +33,9 @@ fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::er
     }
 
     let file = File::open(path)?;
-    let file_size = file.metadata()?.size();
     let mut reader = BufReader::new(file);
 
-    stream.write(file_size.to_string().as_bytes())?;
+    stream.write(path.file_name().unwrap().as_bytes())?;
 
     let mut buffer = [0u8; 4096];
     let mut writer = BufWriter::new(stream);
