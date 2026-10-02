@@ -1,32 +1,33 @@
-mod recive;
+mod receive;
 mod send;
-use crate::send::{cancle, send};
-use crate::recive::recive;
+use crate::receive::receive;
+use crate::send::{cancel, send};
+use clap::Parser;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use clap::{Parser};
-use serde_json;
 
-#[derive(Parser,Debug)]
-#[command(name = "beam" , override_usage = "beam --send <file>\n       beam <code>"
+#[derive(Parser, Debug)]
+#[command(
+    name = "beam",
+    override_usage = "beam --send <file>\n       beam <code>"
 )]
 #[command(about = "beam - transfer files between computers")]
 #[command(arg_required_else_help(true))]
-struct Cli{
-    #[arg(short,long,value_name="file")]
-    send:Option<String>,
+struct Cli {
+    #[arg(short, long, value_name = "file")]
+    send: Option<String>,
     #[arg(short = 'w', long)]
     watch: bool,
-    #[arg(short,long)]
+    #[arg(short, long)]
     list: bool,
-    #[arg(short,long,value_name="code")]
-    cancel:Option<String>,
+    #[arg(short, long, value_name = "code")]
+    cancel: Option<String>,
 
-    code:Option<String>,
+    code: Option<String>,
 }
 
-fn list_all() -> std::result::Result<(),Box<dyn std::error::Error>>{
-let mut dir = dirs::data_local_dir().unwrap();
+fn list_all() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
 
     let file_path = dir.join("beam.json");
@@ -37,7 +38,7 @@ let mut dir = dirs::data_local_dir().unwrap();
     };
 
     let reader = BufReader::new(file);
-    println!("{:<50} {:<10} {}", "Path", "Code", "Service Name");
+    println!("{:<50} {:<10} Service Name", "Path", "Code");
     println!("{:-<50} {:-<10} {:-<20}", "", "", "");
 
     for line in reader.lines() {
@@ -55,22 +56,18 @@ let mut dir = dirs::data_local_dir().unwrap();
     Ok(())
 }
 
-
-
-fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>{
+fn main() -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args = Cli::parse();
 
-    if args.list{
+    if args.list {
         let _ = list_all();
-    }
-    else if let Some(value) = args.send  {
-        let _ = send(&value,&args.watch)?;
-    }else if let Some(value) = args.code {
-        let _ = recive(&value);
-    }else if let Some(value) = args.cancel  {
-        let _ = cancle(&value);
+    } else if let Some(value) = args.send {
+        send(&value, &args.watch)?;
+    } else if let Some(value) = args.code {
+        let _ = receive(&value);
+    } else if let Some(value) = args.cancel {
+        let _ = cancel(&value);
     }
 
     Ok(())
 }
-

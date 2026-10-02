@@ -1,47 +1,51 @@
+use daemonize::Daemonize;
+use local_ip_address::local_ip;
+use mdns_sd::{ServiceDaemon, ServiceInfo};
+use rand::{RngExt, distr::Alphanumeric};
+use serde_json::json;
 use std::env;
 use std::fs::File;
-use std::io::{BufRead,BufReader,BufWriter,Read,Write};
-use std::net::{IpAddr,TcpListener,TcpStream};
-use std::os::unix::{ffi::OsStrExt,fs::MetadataExt};
-use std::path::{Path,PathBuf};
 use std::fs::OpenOptions;
-use rand::{distr::Alphanumeric,RngExt};
-use mdns_sd::{ServiceDaemon, ServiceInfo};
-use local_ip_address::local_ip;
-use daemonize::Daemonize;
-use serde_json::json;
-
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::net::{IpAddr, TcpListener, TcpStream};
+use std::os::unix::{ffi::OsStrExt, fs::MetadataExt};
+use std::path::{Path, PathBuf};
 
 fn gen_code() -> String {
     let mut rng = rand::rng();
-    let chars:String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
-    return  chars;
+    let chars: String = (0..7).map(|_| rng.sample(Alphanumeric) as char).collect();
+    chars
 }
 
-fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>>{
-    let mut buffer = [0u8;1024];
-    stream.read(&mut buffer).expect("Error Reading");
+fn handle_client(
+    mut stream: TcpStream,
+) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut buffer = [0u8; 1024];
+    stream.read_exact(&mut buffer).expect("Error Reading");
     println!("Waiting for code");
     let request = std::str::from_utf8(&buffer[..])?;
     let request = request.replace("\0", "");
-    let request =  request.trim();
-    let path = get_file_path(&request)?;
+    let request = request.trim();
+    let path = get_file_path(request)?;
     let path = Path::new(&path);
-    
+
     println!("path:{path:?}");
     if !path.exists() || !path.is_file() {
-        let message = format!("File not found {}",path.file_name().unwrap().to_str().unwrap());
-        println!("{}",&message);
-        stream.write(&message.as_bytes())?;
-        return  Ok(());
+        let message = format!(
+            "File not found {}",
+            path.file_name().unwrap().to_str().unwrap()
+        );
+        println!("{}", message);
+        stream.write_all(message.as_bytes())?;
+        return Ok(());
     }
 
     let file = File::open(path)?;
     let file_size = file.metadata()?.size();
     let mut reader = BufReader::new(file);
 
-    stream.write(file_size.to_string().as_bytes())?;
-    stream.write(path.file_name().unwrap().as_bytes())?;
+    stream.write_all(file_size.to_string().as_bytes())?;
+    stream.write_all(path.file_name().unwrap().as_bytes())?;
 
     let mut buffer = [0u8; 4096];
     let mut writer = BufWriter::new(stream);
@@ -59,26 +63,33 @@ fn handle_clinet(mut stream:TcpStream)-> std::result::Result<(),Box<dyn  std::er
     Ok(())
 }
 
-fn register_service(host_name:&String,current_ip:&IpAddr,code:&String) -> std::result::Result<String,Box<dyn  std::error::Error + Send + Sync>> {
+fn register_service(
+    host_name: &str,
+    current_ip: &IpAddr,
+    code: &String,
+) -> std::result::Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let properties = [("code", code.as_str())];
     let daemon = ServiceDaemon::new()?;
 
     let service = ServiceInfo::new(
         "_beam._tcp.local.",
-        &format!("Beam_{}",code),
+        &format!("Beam_{}", code),
         host_name,
-        current_ip,   
+        current_ip,
         53317,
         &properties[..],
     )?;
 
-    let _ = daemon.register(service.clone())?;
+    daemon.register(service.clone())?;
 
     Ok(service.get_fullname().to_string())
 }
 
-fn register_file(path:&String,code:&String,service_name:&String)-> std::result::Result<(),Box<dyn  std::error::Error + Send + Sync>> {
-
+fn register_file(
+    path: &String,
+    code: &String,
+    service_name: &String,
+) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
 
@@ -101,11 +112,11 @@ fn register_file(path:&String,code:&String,service_name:&String)-> std::result::
     writeln!(file, "{}", json)?;
 
     Ok(())
-
-
 }
 
-fn get_file_path(code:&str)-> std::result::Result<String,Box<dyn std::error::Error + Send + Sync>> {
+fn get_file_path(
+    code: &str,
+) -> std::result::Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
 
@@ -114,18 +125,20 @@ fn get_file_path(code:&str)-> std::result::Result<String,Box<dyn std::error::Err
     let reader = BufReader::new(file);
     for line in reader.lines() {
         let line = line?;
-        let data:serde_json::Value = serde_json::from_str(&line)?;
+        let data: serde_json::Value = serde_json::from_str(&line)?;
         let current_code = data["code"].as_str().unwrap();
-        if &current_code == &code{
+        if current_code == code {
             return Ok(String::from(data["path"].as_str().unwrap()));
-        }   
+        }
     }
 
     Ok(String::from("Not Found"))
 }
 
-fn check_already_sent(path:&String) -> std::result::Result<bool,Box<dyn  std::error::Error + Send + Sync>>{
-   let mut dir = dirs::data_local_dir().unwrap();
+fn check_already_sent(
+    path: &String,
+) -> std::result::Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
 
     let file_path = dir.join("beam.json");
@@ -150,24 +163,27 @@ fn check_already_sent(path:&String) -> std::result::Result<bool,Box<dyn  std::er
     Ok(false)
 }
 
-fn send_file(code:&String,path: &String)->std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>{
+fn send_file(
+    code: &String,
+    path: &String,
+) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let host_name = format!("{}.local.", hostname::get()?.to_string_lossy());
     let current_ip = local_ip()?;
     let ip_str = current_ip.to_string();
     let addr = format!("{ip_str}:53317");
 
-    let service_name = register_service(&host_name, &current_ip, &code)?;  
-    register_file(path, code,&service_name)?;
+    let service_name = register_service(&host_name, &current_ip, code)?;
+    register_file(path, code, &service_name)?;
 
     let listener = TcpListener::bind(&addr)?;
-    println!("TCP Listning addr: {}",&addr);
-    for stream in listener.incoming(){
+    println!("TCP Listening addr: {}", addr);
+    for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                std::thread::spawn(|| handle_clinet(stream));
+                std::thread::spawn(|| handle_client(stream));
             }
             Err(e) => {
-                eprintln!("Error {}",e);
+                eprintln!("Error {}", e);
             }
         }
     }
@@ -179,7 +195,10 @@ fn get_full_path(filename: &str) -> std::io::Result<PathBuf> {
     Ok(current_dir.join(filename))
 }
 
-pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub fn send(
+    path: &str,
+    watch: &bool,
+) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let code = gen_code();
     let path = get_full_path(path)?;
     let path = path.display();
@@ -188,47 +207,48 @@ pub fn send(path: &str,watch:&bool) -> std::result::Result<(), Box<dyn std::erro
         return Ok(());
     }
     println!("Your BeamCode is :{code} ");
-    
+
     if *watch {
-        send_file(&code,&path.to_string())?;
-    }else{
+        send_file(&code, &path.to_string())?;
+    } else {
         let stdout = File::create(format!("/tmp/beam{code}.out")).unwrap();
         let stderr = File::create(format!("/tmp/beam{code}.err")).unwrap();
 
         let daemonize = Daemonize::new()
             .pid_file(format!("/tmp/beam{code}.pid"))
-            .chown_pid_file(true)      
-            .working_directory("/tmp") 
-            .stdout(stdout)  
+            .chown_pid_file(true)
+            .working_directory("/tmp")
+            .stdout(stdout)
             .stderr(stderr);
 
         match daemonize.start() {
-            Ok(_) => send_file(&code,&path.to_string())?,
+            Ok(_) => send_file(&code, &path.to_string())?,
             Err(e) => eprintln!("Error, {}", e),
         }
-
     }
 
     Ok(())
 }
 
-pub fn cancle(code:&str) -> std::io::Result<()> {
+pub fn cancel(code: &str) -> std::io::Result<()> {
     let pid_path = format!("/tmp/beam{code}.pid");
     let pid = std::fs::read_to_string(&pid_path)?.trim().to_string();
 
-    std::process::Command::new("kill").args(["-TERM",&pid]).status()?;
+    std::process::Command::new("kill")
+        .args(["-TERM", &pid])
+        .status()?;
     let mut dir = dirs::data_local_dir().unwrap();
     dir.push("beam");
     let file_path = dir.join("beam.json");
     let lines = std::fs::read_to_string(&file_path)?
-    .lines()
-    .filter(|line| {
-        serde_json::from_str::<serde_json::Value>(line)
-            .map(|v| v["code"].as_str() != Some(code))
-            .unwrap_or(true)
-    })
-    .collect::<Vec<_>>()
-    .join("\n");
+        .lines()
+        .filter(|line| {
+            serde_json::from_str::<serde_json::Value>(line)
+                .map(|v| v["code"].as_str() != Some(code))
+                .unwrap_or(true)
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
     std::fs::write(&file_path, lines)?;
 
