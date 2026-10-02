@@ -5,7 +5,7 @@ use crate::recive::recive;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use clap::{Parser};
-use serde_json::{self, value};
+use serde_json;
 
 #[derive(Parser,Debug)]
 #[command(name = "beam" , override_usage = "beam --send <file>\n       beam <code>"
